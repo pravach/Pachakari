@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="hakkari.Application/Pachakkari.Application.csproj" />
+  <Project Path="Pachakkari.Domain/Pachakkari.Domain.csproj" />
+  <Project Path="Pachakkari.Infrastructure/Pachakkari.Infrastructure.csproj" />
+  <Project Path="PachakkariAPI/Pachakkari.API.csproj" />
+</Solution>

@@ -1,0 +1,96 @@
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Pachakkari.Application.Interfaces;
+using Pachakkari.Domain.Entities;
+using Pachakkari.Infrastructure.Services;
+
+namespace PachakkariAPI.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class ProductController : ControllerBase
+    {
+        private readonly IProductRepository _repository;
+        private readonly ICloudinaryServices _cloudinaryservices;
+        public ProductController(IProductRepository repository,ICloudinaryServices cloudinaryServices)
+        {
+            _repository = repository;
+            _cloudinaryservices = cloudinaryServices;
+
+
+        }
+
+        
+        [HttpGet]
+        public async Task<IActionResult> GetAllProducts()
+        {
+            var products = await _repository.GetAllAsync();
+            return Ok(products);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetProductById(int id)
+        {
+            var product = await _repository.GetByIdAsync(id);
+            if (product == null)
+            {
+                return NotFound();
+            }
+            return Ok(product);
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPost]
+        public async Task<IActionResult> AddProduct(
+           [FromForm] Product product,
+           IFormFile image)
+        {
+            if (image == null || image.Length == 0)
+            {
+                return BadRequest("Product image is required.");
+            }
+
+            var imageUrl =
+                await _cloudinaryservices.UploadImageAsync(image);
+
+            product.Image = imageUrl;
+
+            var newProduct =
+                await _repository.AddAsync(product);
+
+            return Ok(newProduct);
+        }
+
+        [Authorize(Roles = "Admin")]
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateProduct(int id, Product product)
+        {
+            var updatedProduct = await _repository.UpdateAsync(id, product);
+
+            if (updatedProduct == null)
+            {
+                return NotFound();
+            }
+            return Ok(updatedProduct);
+        }
+
+
+        [Authorize(Roles = "Admin")]
+        [HttpDelete("{(id)}")]
+        public async Task<IActionResult>DeleteProduct(int id)
+        {
+            var deleted = await _repository.DeleteAsync(id);
+
+            if (!deleted)
+            {
+                return NotFound();
+            }
+            return NoContent();
+        }
+
+
+
+
+
+    }
+}
