@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Pachakkari.Application.DTOs;
 using Pachakkari.Application.Interfaces;
-using Microsoft.AspNetCore.Authorization;
 using Pachakkari.Domain.Entities;
 
 namespace Pachakkari.API.Controllers
@@ -11,34 +12,65 @@ namespace Pachakkari.API.Controllers
     public class UserController:ControllerBase
     {
         private readonly IUserService _userService;
-        
-        public UserController(IUserService service)
+        private readonly IValidator<RegisterUserDto> _registerValidator;
+        private readonly IValidator<LoginDto> _loginValidator;
+
+        public UserController(IUserService service,IValidator<RegisterUserDto> registerValidator,IValidator<LoginDto> loginValidator)
         {
             _userService = service;
+            _registerValidator = registerValidator;
+            _loginValidator = loginValidator;
         }
 
+
+
         [HttpPost("register")]
-        public async Task<IActionResult>Register(RegisterUserDto request)
+        public async Task<IActionResult> Register(RegisterUserDto request)
         {
+            var validationResult =
+                await _registerValidator.ValidateAsync(request);
+
+            if (!validationResult.IsValid)
+            {
+                return BadRequest(validationResult.Errors.Select(error => new
+                {
+                    Field = error.PropertyName,
+                    Message = error.ErrorMessage
+                }));
+            }
+
             var user = await _userService.RegisterAsync(request);
 
             if (user == null)
             {
-                return BadRequest("Email already exist");
+                return BadRequest("Email already exists");
             }
 
             return Ok(user);
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult>Login(LoginDto request)
+        public async Task<IActionResult> Login(LoginDto request)
         {
+            var validationResult =
+                await _loginValidator.ValidateAsync(request);
+
+            if (!validationResult.IsValid)
+            {
+                return BadRequest(validationResult.Errors.Select(error => new
+                {
+                    Field = error.PropertyName,
+                    Message = error.ErrorMessage
+                }));
+            }
+
             var user = await _userService.LoginAsync(request);
+
             if (user == null)
             {
                 return Unauthorized("Invalid email or password");
-
             }
+
             return Ok(user);
         }
 
