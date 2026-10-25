@@ -4,22 +4,36 @@ using Microsoft.AspNetCore.Mvc;
 using Pachakkari.Application.DTOs;
 using Pachakkari.Application.Interfaces;
 using Pachakkari.Domain.Entities;
+using System.Security.Claims;
 
 namespace Pachakkari.API.Controllers
 {
     [ApiController]
     [Route("api/users")]
-    public class UserController:ControllerBase
+    public class UserController : ControllerBase
     {
         private readonly IUserService _userService;
         private readonly IValidator<RegisterUserDto> _registerValidator;
         private readonly IValidator<LoginDto> _loginValidator;
 
-        public UserController(IUserService service,IValidator<RegisterUserDto> registerValidator,IValidator<LoginDto> loginValidator)
+        public UserController(IUserService service, IValidator<RegisterUserDto> registerValidator, IValidator<LoginDto> loginValidator)
         {
             _userService = service;
             _registerValidator = registerValidator;
             _loginValidator = loginValidator;
+        }
+
+        private int? GetUserId()
+        {
+            var userIdValue = User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+
+            if (int.TryParse(userIdValue, out var userId))
+            {
+                return userId;
+            }
+
+            return null;
         }
 
 
@@ -49,6 +63,7 @@ namespace Pachakkari.API.Controllers
             return Ok(user);
         }
 
+
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto request)
         {
@@ -64,50 +79,83 @@ namespace Pachakkari.API.Controllers
                 }));
             }
 
-            var user = await _userService.LoginAsync(request);
+            var loginResponse = await _userService.LoginAsync(request);
+
+            if (loginResponse == null)
+            {
+                return Unauthorized("Invalid email or password, or account is blocked.");
+            }
+
+            // Store the JWT in an HttpOnly cookie
+            Response.Cookies.Append(
+                "access_token",
+                loginResponse.Token,
+                new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = true,
+                    SameSite = SameSiteMode.None,
+                    Expires = DateTimeOffset.UtcNow.AddMinutes(60),
+                    Path = "/"
+                });
+
+            // Return user details, but do not expose the token in the response body
+            return Ok(loginResponse.User);
+        }
+
+
+        [Authorize]
+        [HttpGet("me")]
+        public async Task<IActionResult> GetMyProfile()
+        {
+            var userId = GetUserId();
+
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
+            var user = await _userService.GetUserByIdAsync(
+                userId.Value);
 
             if (user == null)
             {
-                return Unauthorized("Invalid email or password");
+                return NotFound("User not found");
             }
 
             return Ok(user);
         }
 
         [Authorize]
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetUserById(int id)
+        [HttpPut("me")]
+        public async Task<IActionResult> UpdateMyProfile(
+    UpdateUserDto dto)
         {
-            var user = await _userService.GetUserByIdAsync(id);
+            var userId = GetUserId();
 
-            if (user == null)
+            if (userId == null)
             {
-                return NotFound();
+                return Unauthorized("User ID not found in token");
             }
 
-            return Ok(user);
-        }
+            var existingUser = await _userService.GetUserByIdAsync(
+                userId.Value);
 
-        [Authorize]
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(int id, UpdateUserDto dto)
-        {
-            var existingUser = await _userService.GetUserByIdAsync(id);
             if (existingUser == null)
             {
                 return NotFound("User not found");
             }
-            var user = new User
-            {
-                Id =id,
-                Name=dto.Name,
-                Email=dto.Email
-            };
-            var updatedUser = await _userService.UpdateUserAsync(user);
+
+            existingUser.Name = dto.Name;
+            existingUser.Email = dto.Email;
+
+            var updatedUser = await _userService.UpdateUserAsync(
+                existingUser);
+
             return Ok(updatedUser);
-
-
         }
+
+
         [Authorize(Roles = "Admin")]
         [HttpGet]
         public async Task<IActionResult> GetAllUsers()
@@ -174,5 +222,21 @@ namespace Pachakkari.API.Controllers
             });
         }
 
+        [HttpPost("logout")]
+        public IActionResult Logout()
+        {
+            Response.Cookies.Delete(
+                "access_token",
+                new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = true,
+                    SameSite = SameSiteMode.None,
+                    Path = "/"
+                });
+
+            return Ok(new { message = "Logged out successfully." });
+
+        }
     }
 }

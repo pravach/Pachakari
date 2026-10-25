@@ -1,4 +1,5 @@
-﻿using Pachakkari.Application.DTOs.Order;
+﻿using Pachakkari.Application.DTOs;
+using Pachakkari.Application.DTOs.Order;
 using Pachakkari.Application.Interfaces;
 using Pachakkari.Domain.Entities;
 using System.Linq.Expressions;
@@ -18,21 +19,33 @@ namespace Pachakkari.Application.Services
             _cartRepository = cartRepository;
         }
 
-        public async Task<OrderResponseDto?> PlaceOrderAsync(int userId)
+
+        public async Task<OrderResponseDto?> PlaceOrderAsync(
+            int userId,
+            PlaceOrderDto dto)
         {
-            // Get the user's cart, including its products
+            // Get the logged-in user's cart
             var cart = await _cartRepository.GetCartById(userId);
 
             if (cart == null || cart.CartItems.Count == 0)
                 return null;
 
-            // Create an order using the cart items
+            // Create the order and save delivery details
             var order = new Order
             {
                 UserId = userId,
                 OrderDate = DateTime.UtcNow,
                 Status = "Pending",
 
+                FullName = dto.FullName,
+                Phone = dto.Phone,
+                Address = dto.Address,
+                City = dto.City,
+                State = dto.State,
+                Pincode = dto.Pincode,
+                PaymentMethod = dto.PaymentMethod,
+
+                // Copy the cart items into the order
                 OrderItems = cart.CartItems.Select(item => new OrderItem
                 {
                     ProductId = item.ProductId,
@@ -41,13 +54,14 @@ namespace Pachakkari.Application.Services
                 }).ToList()
             };
 
+            // Calculate the total on the backend
             order.TotalAmount = order.OrderItems.Sum(
                 item => item.Quantity * item.UnitPrice);
 
             // Save the order
             var savedOrder = await _orderRepository.CreateAsync(order);
 
-            // Remove the cart items after the order is created
+            // Clear the cart after saving the order
             foreach (var cartItem in cart.CartItems.ToList())
             {
                 await _cartRepository.RemoveCartItemAsync(cartItem);
@@ -55,7 +69,7 @@ namespace Pachakkari.Application.Services
 
             await _cartRepository.SaveChangesAsync();
 
-            // Return the order in DTO format
+            // Retrieve the saved order with product details
             var orderWithProducts =
                 await _orderRepository.GetByIdAsync(savedOrder.Id);
 
@@ -63,6 +77,7 @@ namespace Pachakkari.Application.Services
                 ? null
                 : MapToDto(orderWithProducts);
         }
+
 
         public async Task<List<OrderResponseDto>> GetUserOrdersAsync(int userId)
         {
@@ -92,6 +107,13 @@ namespace Pachakkari.Application.Services
                 TotalAmount = order.TotalAmount,
                 Status = order.Status,
                 OrderDate = order.OrderDate,
+                FullName = order.FullName,
+                Phone = order.Phone,
+                Address = order.Address,
+                City = order.City,
+                State = order.State,
+                Pincode = order.Pincode,
+                PaymentMethod = order.PaymentMethod,
 
                 Products = order.OrderItems.Select(item => new OrderItemResponseDto
                 {

@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pachakkari.Application.DTOs;
 using Pachakkari.Application.Interfaces;
 using Pachakkari.Domain.Entities;
 using Pachakkari.Infrastructure.Services;
@@ -42,21 +43,26 @@ namespace PachakkariAPI.Controllers
         [Authorize(Roles = "Admin")]
         [HttpPost]
         public async Task<IActionResult> AddProduct(
-           [FromForm] Product product,
-           IFormFile image)
+    [FromForm] CreateProductDto request)
         {
-            if (image == null || image.Length == 0)
+            if (request.Image == null || request.Image.Length == 0)
             {
                 return BadRequest("Product image is required.");
             }
 
             var imageUrl =
-                await _cloudinaryservices.UploadImageAsync(image);
+                await _cloudinaryservices.UploadImageAsync(request.Image);
 
-            product.Image = imageUrl;
+            var product = new Product
+            {
+                Title = request.Title,
+                Price = request.Price,
+                Category = request.Category,
+                Description = request.Description,
+                Image = imageUrl
+            };
 
-            var newProduct =
-                await _repository.AddAsync(product);
+            var newProduct = await _repository.AddAsync(product);
 
             return Ok(newProduct);
         }

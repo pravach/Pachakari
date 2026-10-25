@@ -44,17 +44,16 @@ namespace Pachakkari.Infrastructure.Repositories
             return cartItem;
         }
 
-        public async Task UpdateCartItemAsync(CartItem cartItem)
+        public Task UpdateCartItemAsync(CartItem cartItem)
         {
-             _context.CartItems.Update(cartItem);
-            await Task.CompletedTask;
+            _context.CartItems.Update(cartItem);
+            return Task.CompletedTask;
         }
 
-        public async Task RemoveCartItemAsync(CartItem cartItem)
+        public Task RemoveCartItemAsync(CartItem cartItem)
         {
             _context.CartItems.Remove(cartItem);
-
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         public async Task SaveChangesAsync()
@@ -72,6 +71,8 @@ namespace Pachakkari.Infrastructure.Repositories
                 return;
 
             _context.CartItems.RemoveRange(cart.CartItems);
+
+            await _context.SaveChangesAsync();
         }
 
 

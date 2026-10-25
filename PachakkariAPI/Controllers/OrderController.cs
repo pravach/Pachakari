@@ -1,7 +1,9 @@
-﻿using System.Security.Claims;
+﻿
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pachakkari.Application.DTOs;
 using Pachakkari.Application.Interfaces;
+using System.Security.Claims;
 
 namespace PachakkariAPI.Controllers
 {
@@ -17,19 +19,41 @@ namespace PachakkariAPI.Controllers
             _orderService = orderService;
         }
 
-        [HttpPost("place")]
-        public async Task<IActionResult> PlaceOrder()
+        // Get the logged-in user's ID from the JWT token
+        private int? GetUserId()
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var userIdValue = User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
 
-            if (userIdClaim == null)
+            if (int.TryParse(userIdValue, out var userId))
+            {
+                return userId;
+            }
+
+            return null;
+        }
+
+        // Place an order for the logged-in user
+
+        [HttpPost("place")]
+        public async Task<IActionResult> PlaceOrder(
+            [FromBody] PlaceOrderDto dto)
+        {
+            var userId = GetUserId();
+
+            if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            int userId = int.Parse(userIdClaim.Value);
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
 
-            var order = await _orderService.PlaceOrderAsync(userId);
+            var order = await _orderService.PlaceOrderAsync(
+                userId.Value,
+                dto);
 
             if (order == null)
             {
@@ -39,26 +63,35 @@ namespace PachakkariAPI.Controllers
             return Ok(order);
         }
 
+
+        // Get orders belonging to the logged-in user
         [HttpGet("my-orders")]
         public async Task<IActionResult> GetMyOrders()
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            var userId = GetUserId();
 
-            if (userIdClaim == null)
+            if (userId == null)
             {
                 return Unauthorized("User ID not found in token");
             }
 
-            int userId = int.Parse(userIdClaim.Value);
-
-            var orders = await _orderService.GetUserOrdersAsync(userId);
+            var orders = await _orderService.GetUserOrdersAsync(
+                userId.Value);
 
             return Ok(orders);
         }
 
+        // Get a specific order
         [HttpGet("{id}")]
         public async Task<IActionResult> GetOrderById(int id)
         {
+            var userId = GetUserId();
+
+            if (userId == null)
+            {
+                return Unauthorized("User ID not found in token");
+            }
+
             var order = await _orderService.GetOrderByIdAsync(id);
 
             if (order == null)
@@ -66,14 +99,21 @@ namespace PachakkariAPI.Controllers
                 return NotFound("Order not found");
             }
 
+            // Admin can view any order; users can view only their own
+            if (!User.IsInRole("Admin") && order.UserId != userId.Value)
+            {
+                return Forbid();
+            }
+
             return Ok(order);
         }
 
+        // Update order status - Admin only
         [HttpPut("{id}/status")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> UpdateOrderStatus(
             int id,
-            string status)
+            [FromQuery] string status)
         {
             var result = await _orderService.UpdateOrderStatusAsync(
                 id,
@@ -87,8 +127,9 @@ namespace PachakkariAPI.Controllers
             return Ok("Order status updated successfully");
         }
 
-        [Authorize(Roles = "Admin")]
+        // Get all orders - Admin only
         [HttpGet("all")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> GetAllOrders()
         {
             var orders = await _orderService.GetAllOrdersAsync();
