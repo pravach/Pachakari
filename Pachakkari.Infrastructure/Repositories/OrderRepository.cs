@@ -24,10 +24,24 @@ namespace Pachakkari.Infrastructure.Repositories
 
         public async Task<List<Order>> GetAllAsync()
         {
-            return await _context.Orders
+            var orders = await _context.Orders
+                .AsNoTracking()
                 .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.Product)
                 .ToListAsync();
+
+            foreach (var order in orders)
+            {
+                foreach (var item in order.OrderItems)
+                {
+                    Console.WriteLine(
+                        $"OrderItemId: {item.Id}, " +
+                        $"ProductId: {item.ProductId}, " +
+                        $"ProductName: {item.Product?.Title ?? "NULL"}");
+                }
+            }
+
+            return orders;
         }
 
         public async Task<Order?> GetByIdAsync(int id)

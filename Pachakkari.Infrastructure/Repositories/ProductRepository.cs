@@ -55,21 +55,34 @@ namespace Pachakkari.Infrastructure.Repositories
             return existing_product;
         }
 
-        public async Task<bool>DeleteAsync(int id)
+
+        public async Task<bool> DeleteAsync(int id)
         {
-            var product =await  _context.Products.FindAsync(id);
+            var product = await _context.Products.FindAsync(id);
+
             if (product == null)
             {
                 return false;
             }
+
+            // Step 1: Find cart items containing this product
+            var cartItems = await _context.CartItems
+                .Where(c => c.ProductId == id)
+                .ToListAsync();
+
+            // Step 2: Remove those cart items
+            _context.CartItems.RemoveRange(cartItems);
+
+            // Step 3: Remove the product
             _context.Products.Remove(product);
+
+            // Step 4: Save all changes
             await _context.SaveChangesAsync();
 
-            return true;  
-
-
+            return true;
         }
-       
+
+
 
 
     }

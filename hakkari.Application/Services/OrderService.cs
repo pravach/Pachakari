@@ -134,31 +134,14 @@ namespace Pachakkari.Application.Services
             };
         }
 
-            public async Task<List<OrderResponseDto>> GetAllOrdersAsync()
-      
+
+        public async Task<List<OrderResponseDto>> GetAllOrdersAsync()
         {
             var orders = await _orderRepository.GetAllAsync();
-            var orderResponses = orders.Select(order => new OrderResponseDto
-            {
-                Id = order.Id,
-                UserId = order.UserId,
-                OrderDate = order.OrderDate,
-                Status = order.Status,
-                TotalAmount = order.TotalAmount,
 
-                // Step 3: Convert each order item
-                Products = order.OrderItems.Select(item => new OrderItemResponseDto
-                {
-                    Id = item.ProductId,
-                    Quantity = item.Quantity,
-                    UnitPrice = item.UnitPrice
-                }).ToList()
-
-            }).ToList();
-
-            // Step 4: Return all order responses
-            return orderResponses;
+            return orders.Select(MapToDto).ToList();
         }
+
     }
-    }
+}
     

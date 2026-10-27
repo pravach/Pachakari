@@ -67,22 +67,50 @@ namespace PachakkariAPI.Controllers
             return Ok(newProduct);
         }
 
+
         [Authorize(Roles = "Admin")]
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateProduct(int id, Product product)
+        public async Task<IActionResult> UpdateProduct(
+            int id,
+            [FromForm] CreateProductDto request)
         {
-            var updatedProduct = await _repository.UpdateAsync(id, product);
+            var existingProduct = await _repository.GetByIdAsync(id);
+
+            if (existingProduct == null)
+            {
+                return NotFound("Product not found.");
+            }
+
+            // Upload a new image only if the admin selects one
+            if (request.Image != null && request.Image.Length > 0)
+            {
+                var imageUrl =
+                    await _cloudinaryservices.UploadImageAsync(request.Image);
+
+                existingProduct.Image = imageUrl;
+            }
+
+            // Update product details
+            existingProduct.Title = request.Title;
+            existingProduct.Price = request.Price;
+            existingProduct.Category = request.Category;
+            existingProduct.Description = request.Description;
+
+            var updatedProduct =
+                await _repository.UpdateAsync(id, existingProduct);
 
             if (updatedProduct == null)
             {
-                return NotFound();
+                return NotFound("Product not found.");
             }
+
             return Ok(updatedProduct);
         }
 
 
+
         [Authorize(Roles = "Admin")]
-        [HttpDelete("{(id)}")]
+        [HttpDelete("{id}")]
         public async Task<IActionResult>DeleteProduct(int id)
         {
             var deleted = await _repository.DeleteAsync(id);
